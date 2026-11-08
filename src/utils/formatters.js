@@ -1,22 +1,19 @@
 export const CURRENCIES = [
+  { code: 'PKR', symbol: 'Rs', name: 'Pakistani Rupee' },
   { code: 'USD', symbol: '$', name: 'US Dollar' },
   { code: 'EUR', symbol: '€', name: 'Euro' },
-  { code: 'GBP', symbol: '£', name: 'British Pound' },
-  { code: 'PKR', symbol: '₨', name: 'Pakistani Rupee' },
-  { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
-  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
-  { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
-  { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
+  { code: 'SAR', symbol: 'SAR', name: 'Saudi Riyal' },
   { code: 'AED', symbol: 'AED', name: 'UAE Dirham' },
-  { code: 'SAR', symbol: 'SAR', name: 'Saudi Riyal' }
+  { code: 'GBP', symbol: '£', name: 'British Pound' },
+  { code: 'INR', symbol: '₹', name: 'Indian Rupee' }
 ];
 
-export function formatCurrency(amount, currencyCode = 'USD') {
+export function formatCurrency(amount, currencyCode = 'PKR') {
   const curr = CURRENCIES.find(c => c.code === currencyCode) || CURRENCIES[0];
   const num = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
 
-  // Format with commas and 2 decimals (except JPY)
-  const decimals = curr.code === 'JPY' ? 0 : 2;
+  // Format with commas and 0 decimals for PKR/JPY or 2 decimals for USD/EUR
+  const decimals = (curr.code === 'PKR' || curr.code === 'JPY') ? 0 : 2;
   const formattedNumber = num.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals
@@ -30,7 +27,6 @@ export function formatDate(dateString) {
   const date = new Date(dateString);
   const now = new Date();
   
-  // Format as friendly date e.g. "Nov 8, 2026"
   return date.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -49,12 +45,13 @@ export function formatRelativeDate(dateString) {
   return formatDate(dateString);
 }
 
+// Payment Methods
 export const PAYMENT_METHODS = [
   { id: 'cash', label: 'Cash', icon: 'Banknote', color: 'emerald' },
-  { id: 'credit_card', label: 'Credit Card', icon: 'CreditCard', color: 'blue' },
-  { id: 'debit_card', label: 'Debit Card', icon: 'CreditCard', color: 'indigo' },
   { id: 'bank_transfer', label: 'Bank Transfer', icon: 'Building2', color: 'purple' },
-  { id: 'digital_wallet', label: 'Digital Wallet', icon: 'Smartphone', color: 'amber' }
+  { id: 'digital_wallet', label: 'Digital Wallet (Easypaisa/JazzCash)', icon: 'Smartphone', color: 'amber' },
+  { id: 'credit_card', label: 'Credit Card', icon: 'CreditCard', color: 'blue' },
+  { id: 'debit_card', label: 'Debit Card', icon: 'CreditCard', color: 'indigo' }
 ];
 
 export function getPaymentMethodInfo(id) {

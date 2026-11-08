@@ -39,7 +39,7 @@ export async function encryptData(text, password) {
 
   return {
     encrypted: true,
-    version: '1.0',
+    version: '2.0',
     salt: Array.from(salt),
     iv: Array.from(iv),
     data: Array.from(new Uint8Array(ciphertextBuffer))
@@ -63,41 +63,103 @@ export async function decryptData(encryptedContainer, password) {
   return dec.decode(decryptedBuffer);
 }
 
-// Export Database as JSON (with optional password encryption)
-export async function exportDatabaseToJson(password = null) {
+// Generate the complete unified database JSON payload
+export async function generateBackupPayload() {
   const categories = await db.categories.toArray();
   const expenses = await db.expenses.toArray();
   const budgets = await db.budgets.toArray();
   const settings = await db.settings.toArray();
+  const credits = await db.credits.toArray();
+  const creditTransactions = await db.creditTransactions.toArray();
 
-  const backupPayload = {
-    app: 'Expensio PWA',
-    version: '1.0.0',
+  return {
+    app: 'Expensio Unified Financial Suite',
+    version: '2.0.0',
     exportDate: new Date().toISOString(),
     stats: {
       categoryCount: categories.length,
-      expenseCount: expenses.length
+      expenseCount: expenses.length,
+      creditCount: credits.length,
+      creditTransactionCount: creditTransactions.length
     },
     data: {
       categories,
       expenses,
       budgets,
-      settings
+      settings,
+      credits,
+      creditTransactions
     }
   };
+}
 
+// Export Database as JSON (with optional password encryption)
+export async function exportDatabaseToJson(password = null) {
+  const backupPayload = await generateBackupPayload();
   const jsonString = JSON.stringify(backupPayload, null, 2);
+  const expensesCount = backupPayload.data.expenses.length;
+  const creditsCount = backupPayload.data.credits.length;
 
   if (password && password.trim().length > 0) {
     const encryptedObject = await encryptData(jsonString, password);
     const blob = new Blob([JSON.stringify(encryptedObject, null, 2)], { type: 'application/json' });
-    triggerDownload(blob, `expensio-backup-encrypted-${getTimestampStr()}.json`);
-    return { encrypted: true, records: expenses.length };
+    triggerDownload(blob, `expensio-suite-backup-encrypted-${getTimestampStr()}.json`);
+    return { encrypted: true, records: expensesCount + creditsCount };
   } else {
     const blob = new Blob([jsonString], { type: 'application/json' });
-    triggerDownload(blob, `expensio-backup-${getTimestampStr()}.json`);
-    return { encrypted: false, records: expenses.length };
+    triggerDownload(blob, `expensio-suite-backup-${getTimestampStr()}.json`);
+    return { encrypted: false, records: expensesCount + creditsCount };
   }
+}
+
+// Send Backup to Email (triggers Web Share API or prepares mailto + file download)
+export async function sendBackupToEmail(password = null, recipientEmail = '') {
+  const backupPayload = await generateBackupPayload();
+  const jsonString = JSON.stringify(backupPayload, null, 2);
+  const filename = `expensio-backup-${getTimestampStr()}.json`;
+
+  let finalContent = jsonString;
+  let isEncrypted = false;
+
+  if (password && password.trim().length > 0) {
+    const encryptedObject = await encryptData(jsonString, password);
+    finalContent = JSON.stringify(encryptedObject, null, 2);
+    isEncrypted = true;
+  }
+
+  const blob = new Blob([finalContent], { type: 'application/json' });
+  const file = new File([blob], filename, { type: 'application/json' });
+
+  // 1. Try native Web Share API with files (supported on Mobile Chrome/Safari/Edge)
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        title: 'Expensio Unified Financial Suite Backup',
+        text: `Expensio Database Backup created on ${new Date().toLocaleDateString()}. Contains ${backupPayload.stats.expenseCount} expenses and ${backupPayload.stats.creditCount} credit/debt records.`,
+        files: [file]
+      });
+      return { success: true, method: 'share', filename };
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        return { success: false, cancelled: true };
+      }
+    }
+  }
+
+  // 2. Fallback: Download file automatically and open email client via mailto:
+  triggerDownload(blob, filename);
+
+  const subject = encodeURIComponent(`Expensio Financial Suite Backup (${new Date().toLocaleDateString()})`);
+  const body = encodeURIComponent(
+    `Hello,\n\nYour Expensio database backup file "${filename}" has been prepared and downloaded to your device.\n\n` +
+    `Summary:\n- Total Expenses: ${backupPayload.stats.expenseCount}\n- Total Credit & Debt Accounts: ${backupPayload.stats.creditCount}\n- Export Date: ${new Date().toLocaleString()}\n- Encrypted: ${isEncrypted ? 'Yes (AES-GCM 256)' : 'No'}\n\n` +
+    `Please attach the downloaded file "${filename}" to this email for safe keeping.\n\nExpensio Unified Financial Suite`
+  );
+
+  const mailtoUrl = `mailto:${recipientEmail || ''}?subject=${subject}&body=${body}`;
+  window.location.href = mailtoUrl;
+
+  return { success: true, method: 'mailto', filename };
 }
 
 // Export Expenses to standard CSV format
@@ -169,27 +231,35 @@ export async function restoreBackupFromJson(jsonString, password = null, mode = 
     throw new Error('Invalid backup schema: Missing data.categories or data.expenses');
   }
 
-  const { categories, expenses, budgets, settings } = parsed.data;
+  const { categories, expenses, budgets, settings, credits = [], creditTransactions = [] } = parsed.data;
 
   let restoredExpenses = 0;
   let skippedDuplicates = 0;
   let restoredCategories = 0;
+  let restoredCredits = 0;
 
-  await db.transaction('rw', [db.categories, db.expenses, db.budgets, db.settings], async () => {
+  const tablesToLock = [db.categories, db.expenses, db.budgets, db.settings, db.credits, db.creditTransactions];
+
+  await db.transaction('rw', tablesToLock, async () => {
     if (mode === 'replace') {
-      // Clean replace
+      // Clean replace all tables
       await db.categories.clear();
       await db.expenses.clear();
       await db.budgets.clear();
       await db.settings.clear();
+      await db.credits.clear();
+      await db.creditTransactions.clear();
 
       await db.categories.bulkAdd(categories);
       await db.expenses.bulkAdd(expenses);
       if (budgets && budgets.length) await db.budgets.bulkAdd(budgets);
       if (settings && settings.length) await db.settings.bulkAdd(settings);
+      if (credits && credits.length) await db.credits.bulkAdd(credits);
+      if (creditTransactions && creditTransactions.length) await db.creditTransactions.bulkAdd(creditTransactions);
 
       restoredExpenses = expenses.length;
       restoredCategories = categories.length;
+      restoredCredits = credits.length;
     } else {
       // Merge mode with duplicate prevention
       const existingCategories = await db.categories.toArray();
@@ -200,7 +270,6 @@ export async function restoreBackupFromJson(jsonString, password = null, mode = 
           await db.categories.add(cat);
           restoredCategories++;
         } else {
-          // Update properties
           await db.categories.update(cat.id, cat);
         }
       }
@@ -216,12 +285,34 @@ export async function restoreBackupFromJson(jsonString, password = null, mode = 
           restoredExpenses++;
         }
       }
+
+      const existingCredits = await db.credits.toArray();
+      const existingCredIds = new Set(existingCredits.map(c => c.id));
+
+      for (const cred of credits) {
+        if (!existingCredIds.has(cred.id)) {
+          await db.credits.add(cred);
+          restoredCredits++;
+        } else {
+          await db.credits.update(cred.id, cred);
+        }
+      }
+
+      const existingTx = await db.creditTransactions.toArray();
+      const existingTxIds = new Set(existingTx.map(t => t.id));
+
+      for (const tx of creditTransactions) {
+        if (!existingTxIds.has(tx.id)) {
+          await db.creditTransactions.add(tx);
+        }
+      }
     }
   });
 
   return {
     restoredCategories,
     restoredExpenses,
+    restoredCredits,
     skippedDuplicates,
     mode
   };

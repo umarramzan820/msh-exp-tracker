@@ -1,20 +1,23 @@
 import React from 'react';
 import { 
-  LayoutDashboard, 
+  Home, 
   Receipt, 
-  PieChart, 
-  FolderTree, 
-  CloudUpload, 
+  HandCoins, 
+  BarChart3, 
   Plus 
 } from 'lucide-react';
 
-export default function MobileNav({ activeTab, setActiveTab, onOpenAddModal }) {
+export default function MobileNav({
+  activeTab,
+  setActiveTab,
+  onOpenAddExpense
+}) {
   const tabs = [
-    { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-    { id: 'expenses', label: 'Expenses', icon: Receipt },
+    { id: 'home', label: 'Hub', icon: Home },
+    { id: 'credit', label: 'Credit', icon: HandCoins },
     { id: 'add', isAction: true },
-    { id: 'analytics', label: 'Analytics', icon: PieChart },
-    { id: 'categories', label: 'Categories', icon: FolderTree }
+    { id: 'expenses', label: 'Expenses', icon: Receipt },
+    { id: 'reports', label: 'Reports', icon: BarChart3 }
   ];
 
   return (
@@ -25,8 +28,8 @@ export default function MobileNav({ activeTab, setActiveTab, onOpenAddModal }) {
             return (
               <button
                 key="add-btn"
-                onClick={onOpenAddModal}
-                className="-mt-5 w-12 h-12 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 flex items-center justify-center shadow-xl shadow-emerald-500/30 active:scale-95 transition-transform"
+                onClick={onOpenAddExpense}
+                className="-mt-5 w-12 h-12 rounded-full bg-gradient-to-tr from-emerald-500 via-teal-400 to-emerald-600 text-slate-950 flex items-center justify-center shadow-xl shadow-emerald-500/30 active:scale-95 transition-transform"
                 aria-label="Add Expense"
               >
                 <Plus className="w-6 h-6 stroke-[3]" />

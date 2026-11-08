@@ -9,11 +9,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
-        name: 'Expensio - Smart Expense Tracker PWA',
+        name: 'Expensio - Unified Financial Suite PWA',
         short_name: 'Expensio',
-        description: 'Production-ready, offline-first expense tracker with multi-level subcategories, dual backup, and comparative analytics.',
+        description: 'Production-ready offline-first financial suite: Expense Tracker, Credit & Debt Manager, Committees, and Visual Reports.',
         theme_color: '#059669',
-        background_color: '#0f172a',
+        background_color: '#090d16',
         display: 'standalone',
         orientation: 'portrait-primary',
         scope: '/',
@@ -64,9 +64,9 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'vendor-react': ['react', 'react-dom'],
           'vendor-db': ['dexie', 'dexie-react-hooks'],
-          'vendor-chart': ['chart.js', 'react-chartjs-2'],
+          'vendor-chartjs': ['chart.js', 'react-chartjs-2'],
+          'vendor-recharts': ['recharts'],
           'vendor-icons': ['lucide-react']
         }
       }
